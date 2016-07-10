@@ -17,65 +17,68 @@ import java.util.regex.Pattern;
  */
 public class MarketValueCrawler {
 
-    public static final int Aggregate_Market_Value_Num = 4;
-    public static final int Circulated_Market_Value_Num = 5;
+    public static final int AGGREGATE_MARKET_VALUE_NUM = 4;
+    public static final int CIRCULATED_MARKET_VALUE_NUM = 5;
+    public static final String AGGREGATE_MARKET_VALUE_SHOWTYPE = "[\"\",\"\",\"onList\",\"onList\",\"onTable\",\"onList\",\"onList\",\"onList\"]";
+    public static final String CIRCULATED_MARKET_VALUE_SHOWTYPE = "[\"\",\"\",\"onList\",\"onList\",\"onList\",\"onTable\",\"onList\",\"onList\"]";
+
 
     public static void main(String[] args) throws IOException {
-        //获取token
         String token = getToken();
-        //抓取总市值数据
-        JSONObject aggregateMarketValue = getMarketValueData(token, Aggregate_Market_Value_Num);
 
-        //解析总市值数据
-        System.out.println("总市值数据:");
-        parseMarketValueData(aggregateMarketValue, Aggregate_Market_Value_Num);
+        int p = 1;
+        int perpage = 70;
+        JSONObject marketValueJSONObject;
+        do {
+            System.out.println("总市值数据(第" + p + "页):");
+            marketValueJSONObject = getMarketValueData(token, AGGREGATE_MARKET_VALUE_NUM, p, perpage);
+            parseMarketValueData(marketValueJSONObject, AGGREGATE_MARKET_VALUE_NUM, p, perpage);
 
-
-        //抓取流通市值数据
-        JSONObject circulatedMarketValue = getMarketValueData(token, Circulated_Market_Value_Num);
-        System.out.println("流通市值数据:");
-        parseMarketValueData(circulatedMarketValue, Circulated_Market_Value_Num);
-        //解析流通市值数据
+            System.out.println("流通市值数据(第" + p + "页):");
+            marketValueJSONObject = getMarketValueData(token, CIRCULATED_MARKET_VALUE_NUM, p, perpage);
+            parseMarketValueData(marketValueJSONObject, CIRCULATED_MARKET_VALUE_NUM, p, perpage);
+            p++;
+        } while (marketValueJSONObject.getInteger("total") > (p - 1) * perpage);
 
     }
 
-    public static JSONObject getMarketValueData(String token, int marketValueType) {
+    public static JSONObject getMarketValueData(String token, int marketValueType, int p, int perpage) {
         try {
             Map<String, String> queryParamMap = new HashMap<String, String>();
             queryParamMap.put("token", token);
-            queryParamMap.put("p", "1");
-            queryParamMap.put("perpage", "25");
-            queryParamMap.put("sort", "{\"column\":"+marketValueType+",\"order\":\"ASC\"}");
-            if (marketValueType == Aggregate_Market_Value_Num) {
-                queryParamMap.put("showType", "[\"\",\"\",\"onList\",\"onList\",\"onTable\",\"onList\",\"onList\",\"onList\"]");
-            } else if (marketValueType == Circulated_Market_Value_Num) {
-                queryParamMap.put("showType", "[\"\",\"\",\"onList\",\"onList\",\"onList\",\"onTable\",\"onList\",\"onList\"]");
+            queryParamMap.put("p", p + "");
+            queryParamMap.put("perpage", perpage + "");
+            queryParamMap.put("sort", "{\"column\":" + marketValueType + ",\"order\":\"ASC\"}");
+            if (marketValueType == AGGREGATE_MARKET_VALUE_NUM) {
+                queryParamMap.put("showType", AGGREGATE_MARKET_VALUE_SHOWTYPE);
+            } else if (marketValueType == CIRCULATED_MARKET_VALUE_NUM) {
+                queryParamMap.put("showType", CIRCULATED_MARKET_VALUE_SHOWTYPE);
             }
             return JSON.parseObject(Jsoup.connect("http://www.iwencai.com/stockpick/cache").data(queryParamMap).ignoreContentType(true).execute().body());
         } catch (IOException e) {
-            System.out.println("获取" + marketValueType + "数据失败");
+            System.out.println("获取" + marketValueType + "数据失败,异常信息:" + e.getMessage());
             return null;
         }
     }
 
-    public static void parseMarketValueData(JSONObject marketValueData, int marketValueType) {
+    public static void parseMarketValueData(JSONObject marketValueData, int marketValueType, int p, int perpage) {
         JSONArray titleJSONArray = marketValueData.getJSONArray("title");
-        String updateDate = titleJSONArray.getString(marketValueType).replace("\r", "")
-                .substring(10 + (marketValueType == Circulated_Market_Value_Num ? 3 : 0));
-        String titleStr = String.format("日期\t排名\t%s\t%s\t%s\t%s"
+        String tradeDate = titleJSONArray.getString(marketValueType).replace("\r", "")
+                .substring(10 + (marketValueType == CIRCULATED_MARKET_VALUE_NUM ? 3 : 0));
+        String titleStr = String.format("交易日期\t排名\t%s\t%s\t%s\t%s"
                 , titleJSONArray.getString(0)
                 , titleJSONArray.getString(1)
                 , titleJSONArray.getString(2)
                 , titleJSONArray.getString(marketValueType).replace("\r", "")
-                        .substring(0, 6 + (marketValueType == Circulated_Market_Value_Num ? 3 : 0))
+                        .substring(0, 6 + (marketValueType == CIRCULATED_MARKET_VALUE_NUM ? 3 : 0))
         );
         System.out.println(titleStr);
         JSONArray resultJSONArray = marketValueData.getJSONArray("result");
         for (int i = 0; i < resultJSONArray.size(); i++) {
             JSONArray marketValue = resultJSONArray.getJSONArray(i);
             String marketValueStr = String.format("%s\t%d\t%s\t%s\t%s\t%s"
-                    , updateDate
-                    , i + 1
+                    , tradeDate
+                    , perpage * (p - 1) + i + 1
                     , marketValue.getString(0)
                     , marketValue.getString(1)
                     , marketValue.getString(2)
